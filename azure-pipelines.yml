@@ -29,8 +29,24 @@ steps:
     python -m pip install --upgrade pip
     pip install -r requirements.txt
   displayName: 'Install dependencies'
+  condition: 
 
 - script: |
     pip install pytest pytest-azurepipelines
     pytest
   displayName: 'pytest'
+
+  # Some lines omitted for brevity.
+
+- script: |
+      chmod +x infra/scripts/*.sh
+      ./infra/scripts/setup.sh
+      ./infra/scripts/run-pulumi.sh      
+      displayName: 'Install pulumi and run infra code'
+      name: pulumi
+      env:
+      PULUMI_ACCESS_TOKEN: $(pulumi.access.token)
+      ARM_CLIENT_SECRET: $(arm.client.secret)
+      ARM_SUBSCRIPTION_ID: $(arm.subscription.id)
+      ARM_CLIENT_ID: $(arm.client.id)
+      ARM_TENANT_ID: $(arm.tenant.id)
