@@ -16,7 +16,8 @@ from pulumi import Config, Output, export
 import base64
 from operator import truediv
 # Create an Azure Resource Group
-resource_group = resources.ResourceGroup('resource_group', resource_group_name="StaticWebSite")
+resource_group = resources.ResourceGroup(
+    'resource_group', resource_group_name="StaticWebSite")
 
 # Create an Azure resource (Storage Account)
 account = storage.StorageAccount('sa',
@@ -56,7 +57,8 @@ config = Config()
 username = config.require("username")
 password = config.require("password")
 
-resource_group2 = resources.ResourceGroup("server", resource_group_name= 'Server_RG')
+resource_group2 = resources.ResourceGroup(
+    "server", resource_group_name='Server_RG')
 
 net = network.VirtualNetwork(
     "server-network",
@@ -71,16 +73,16 @@ net = network.VirtualNetwork(
 
 ipArray = []
 
-i=0
-while i<1:
-    i+=1
+i = 0
+while i < 2:
+    i += 1
     public_ip = network.PublicIPAddress(
-        resource_name= f"ip{i}", public_ip_address_name = f"ip{i}",
+        resource_name=f"ip{i}", public_ip_address_name=f"ip{i}",
         resource_group_name=resource_group2.name,
         public_ip_allocation_method=network.IPAllocationMethod.DYNAMIC)
 
     network_iface = network.NetworkInterface(
-        resource_name= f"server-nic{i}", network_interface_name= f"server-nic{i}",
+        resource_name=f"server-nic{i}", network_interface_name=f"server-nic{i}",
         resource_group_name=resource_group2.name,
         ip_configurations=[network.NetworkInterfaceIPConfigurationArgs(
             name="webserveripcfg",
@@ -92,9 +94,9 @@ while i<1:
     init_script = """#!/bin/bash
     echo "Hello, World!" > index.html
     nohup python -m SimpleHTTPServer 80 &"""
-    
+
     vm = compute.VirtualMachine(
-        resource_name = f"server-vm{i}",
+        resource_name=f"server-vm{i}",
         resource_group_name=resource_group2.name,
         network_profile=compute.NetworkProfileArgs(
             network_interfaces=[
@@ -105,7 +107,7 @@ while i<1:
             vm_size=compute.VirtualMachineSizeTypes.STANDARD_B2S,
         ),
         os_profile=compute.OSProfileArgs(
-            computer_name= f"hostname{i}",
+            computer_name=f"hostname{i}",
             admin_username=username,
             admin_password=password,
             custom_data=base64.b64encode(
@@ -117,7 +119,7 @@ while i<1:
         storage_profile=compute.StorageProfileArgs(
             os_disk=compute.OSDiskArgs(
                 create_option=compute.DiskCreateOptionTypes.FROM_IMAGE,
-                name= f"myosdisk1{i}",
+                name=f"myosdisk{i}",
             ),
             image_reference=compute.ImageReferenceArgs(
                 publisher="canonical",
@@ -126,10 +128,10 @@ while i<1:
                 version="latest",
             ),
         ))
-    
+
     public_ip_addr = vm.id.apply(lambda _: network.get_public_ip_address_output(
         public_ip_address_name=public_ip.name,
         resource_group_name=resource_group2.name))
     ipArray.append(public_ip.ip_configuration)
-    
+
 export("public_ip", ipArray)
