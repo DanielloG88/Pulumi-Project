@@ -1,16 +1,10 @@
-"""An Azure RM Python Pulumi program"""
-from ast import While
-from ipaddress import ip_address
-from re import I
-from tkinter import Y
-from tokenize import Name
-from typing import Container
 from unicodedata import name
 import pulumi
+import pulumi_azure as azure
+import pulumi_azure_native as az
 from pulumi_azure_native import storage
 from pulumi_azure_native import compute
 from pulumi_azure_native import network
-import pulumi
 from pulumi_azure_native import resources
 from pulumi import Config, Output, export
 import base64
@@ -71,16 +65,11 @@ net = network.VirtualNetwork(
         address_prefix="10.0.1.0/24",
     )])
 
-ipArray = []
+# ipArray = []
 
 i = 0
-while i < 2:
+while i < 1:
     i += 1
-    public_ip = network.PublicIPAddress(
-        resource_name=f"ip{i}", public_ip_address_name=f"ip{i}",
-        resource_group_name=resource_group2.name,
-        public_ip_allocation_method=network.IPAllocationMethod.DYNAMIC)
-
     network_iface = network.NetworkInterface(
         resource_name=f"server-nic{i}", network_interface_name=f"server-nic{i}",
         resource_group_name=resource_group2.name,
@@ -88,7 +77,7 @@ while i < 2:
             name="webserveripcfg",
             subnet=network.SubnetArgs(id=net.subnets[0].id),
             private_ip_allocation_method=network.IPAllocationMethod.DYNAMIC,
-            public_ip_address=network.PublicIPAddressArgs(id=public_ip.id),
+            # public_ip_address=network.PublicIPAddressArgs(id=public_ip.id),
         )])
 
     init_script = """#!/bin/bash
@@ -129,9 +118,35 @@ while i < 2:
             ),
         ))
 
-    public_ip_addr = vm.id.apply(lambda _: network.get_public_ip_address_output(
-        public_ip_address_name=public_ip.name,
-        resource_group_name=resource_group2.name))
-    ipArray.append(public_ip.ip_configuration)
+#     public_ip_addr = vm.id.apply(lambda _: network.get_public_ip_address_output(
+#         public_ip_address_name=public_ip.name,
+#         resource_group_name=resource_group2.name))
+#     ipArray.append(public_ip.ip_configuration)
 
-export("public_ip", ipArray)
+# export("public_ip", ipArray)
+
+public_ip = az.network.PublicIPAddress("publicIPAddress",
+    idle_timeout_in_minutes=10,
+    location= resource_group2.location,
+    public_ip_address_version="IPv4",
+    public_ip_allocation_method="Static",
+    public_ip_address_name="test-ip",
+    resource_group_name= resource_group2.name,
+    sku=az.network.PublicIPAddressSkuArgs(
+        name="Standard",
+        tier="Regional",
+    ))
+
+
+load_balancer = azure.lb.LoadBalancer("exampleLoadBalancer",
+    location= resource_group2.location,
+    resource_group_name= resource_group2.name,
+    sku= "Standard",
+    frontend_ip_configurations=[azure.lb.LoadBalancerFrontendIpConfigurationArgs(
+        name="PublicIPAddress",
+        public_ip_address_id= public_ip.id,
+    )])
+# backend_address_pool = azure.lb.BackendAddressPool(
+#     resource_name = "BackendPool",
+#     backend_address_pool = ,
+#     loadbalancer_id = load_balancer.id)
