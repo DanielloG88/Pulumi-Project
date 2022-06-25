@@ -72,7 +72,7 @@ net = network.VirtualNetwork(
 ipArray = []
 
 i=0
-while i<5:
+while i<1:
     i+=1
     public_ip = network.PublicIPAddress(
         resource_name= f"ip{i}", public_ip_address_name = f"ip{i}",
