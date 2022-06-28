@@ -146,7 +146,23 @@ load_balancer = azure.lb.LoadBalancer("exampleLoadBalancer",
         name="PublicIPAddress",
         public_ip_address_id= public_ip.id,
     )])
-# backend_address_pool = azure.lb.BackendAddressPool(
-#     resource_name = "BackendPool",
-#     backend_address_pool = ,
-#     loadbalancer_id = load_balancer.id)
+backend_address_pool = azure.lb.BackendAddressPool("Backend", loadbalancer_id= load_balancer.id)
+
+network_security_group = azure.network.NetworkSecurityGroup("exampleNetworkSecurityGroup",
+    location= resource_group2.location,
+    resource_group_name= resource_group2.name,
+    security_rules=[azure.network.NetworkSecurityGroupSecurityRuleArgs(
+        name="test123",
+        priority=100,
+        direction="Inbound",
+        access="Allow",
+        protocol="Tcp",
+        source_port_range="22",
+        destination_port_range="*",
+        source_address_prefix="*",
+        destination_address_prefix="*",
+    )])
+
+subnet_network_security_group_association = azure.network.SubnetNetworkSecurityGroupAssociation("NSGAssociation",
+    subnet_id= net.subnets[0].id,
+    network_security_group_id= network_security_group.id)
