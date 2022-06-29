@@ -86,6 +86,7 @@ while i < 1:
 
     vm = compute.VirtualMachine(
         resource_name=f"server-vm{i}",
+        vm_name= f"server-vm{i}",
         resource_group_name=resource_group2.name,
         network_profile=compute.NetworkProfileArgs(
             network_interfaces=[
@@ -138,7 +139,9 @@ public_ip = az.network.PublicIPAddress("publicIPAddress",
     ))
 
 
-load_balancer = azure.lb.LoadBalancer("exampleLoadBalancer",
+load_balancer = azure.lb.LoadBalancer(
+    resource_name= "exampleLoadBalancer",
+    name="exampleLoadBalancer",
     location= resource_group2.location,
     resource_group_name= resource_group2.name,
     sku= "Standard",
@@ -148,20 +151,53 @@ load_balancer = azure.lb.LoadBalancer("exampleLoadBalancer",
     )])
 backend_address_pool = azure.lb.BackendAddressPool("Backend", loadbalancer_id= load_balancer.id)
 
-network_security_group = azure.network.NetworkSecurityGroup("exampleNetworkSecurityGroup",
+
+network_security_group = azure.network.NetworkSecurityGroup(resource_name= "NetworkSecurityGroup",
+    name="NetworkSecurityGroup",
     location= resource_group2.location,
+    resource_group_name= resource_group2.name,)
+
+NetworkSR1 = azure.network.NetworkSecurityRule(
+    resource_name = "Test1",
+    name= "test1",
+    priority=100,
+    direction="Inbound",
+    access="Allow",
+    protocol="Tcp",
+    source_port_range="22",
+    destination_port_range="*",
+    source_address_prefix="*",
+    destination_address_prefix="*",
     resource_group_name= resource_group2.name,
-    security_rules=[azure.network.NetworkSecurityGroupSecurityRuleArgs(
-        name="test123",
-        priority=100,
+    network_security_group_name= network_security_group.name)
+
+NetworkSR2 = azure.network.NetworkSecurityRule(
+        resource_name="test2",
+        name= "test2",
+        priority=110,
         direction="Inbound",
         access="Allow",
         protocol="Tcp",
-        source_port_range="22",
+        source_port_range= "80",
         destination_port_range="*",
         source_address_prefix="*",
         destination_address_prefix="*",
-    )])
+        resource_group_name= resource_group2.name,
+        network_security_group_name= network_security_group.name)
+
+NetworkSR3 = azure.network.NetworkSecurityRule( 
+        resource_name="test3",
+        name= "test3",
+        priority=120,
+        direction="Inbound",
+        access="Allow",
+        protocol="Tcp",
+        source_port_range= "445",
+        destination_port_range="*",
+        source_address_prefix="*",
+        destination_address_prefix="*",
+        resource_group_name= resource_group2.name,
+        network_security_group_name= network_security_group.name)
 
 subnet_network_security_group_association = azure.network.SubnetNetworkSecurityGroupAssociation("NSGAssociation",
     subnet_id= net.subnets[0].id,
