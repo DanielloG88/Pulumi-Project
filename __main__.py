@@ -55,7 +55,8 @@ resource_group2 = resources.ResourceGroup(
     "server", resource_group_name='Server_RG')
 
 net = network.VirtualNetwork(
-    "server-network",
+    resource_name = "server-network",
+    virtual_network_name="server-network",
     resource_group_name=resource_group2.name,
     address_space=network.AddressSpaceArgs(
         address_prefixes=["10.0.0.0/16"],
@@ -71,7 +72,8 @@ i = 0
 while i < 1:
     i += 1
     network_iface = network.NetworkInterface(
-        resource_name=f"server-nic{i}", network_interface_name=f"server-nic{i}",
+        resource_name=f"server-nic{i}",
+        network_interface_name=f"server-nic{i}",
         resource_group_name=resource_group2.name,
         ip_configurations=[network.NetworkInterfaceIPConfigurationArgs(
             name="webserveripcfg",
