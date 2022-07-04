@@ -9,9 +9,10 @@ from pulumi_azure_native import resources
 from pulumi import Config, Output, export
 import base64
 from operator import truediv
+
 # Create an Azure Resource Group
 resource_group = resources.ResourceGroup(
-    'resource_group', resource_group_name="StaticWebSite")
+    name = 'StaticWebSiteRG', resource_group_name="StaticWebSiteRG")
 
 # Create an Azure resource (Storage Account)
 account = storage.StorageAccount('sa',
@@ -45,15 +46,15 @@ pulumi.export("primary_storage_key", primary_key)
 # Web endpoint to the website
 pulumi.export("staticEndpoint", account.primary_endpoints.web)
 
-# \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\ Server Part\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+# \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\ Load Balanced Server Part \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 
 config = Config()
 username = config.require("username")
 password = config.require("password")
-
+# \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\ Resource Group \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 resource_group2 = resources.ResourceGroup(
     "server", resource_group_name='Server_RG')
-
+# \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\ Virtual Network and LB roules\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 net = network.VirtualNetwork(
     resource_name = "server-network",
     virtual_network_name="server-network",
@@ -66,10 +67,64 @@ net = network.VirtualNetwork(
         address_prefix="10.0.1.0/24",
     )])
 
-# ipArray = []
+public_ip = az.network.PublicIPAddress("publicIPAddress",
+    idle_timeout_in_minutes=10,
+    location= resource_group2.location,
+    public_ip_address_version="IPv4",
+    public_ip_allocation_method="Static",
+    public_ip_address_name="test-ip",
+    resource_group_name= resource_group2.name,
+    sku=az.network.PublicIPAddressSkuArgs(
+        name="Standard",
+        tier="Regional",
+    ))
 
+load_balancer = azure.lb.LoadBalancer(
+    resource_name= "exampleLoadBalancer",
+    name="exampleLoadBalancer",
+    location= resource_group2.location,
+    resource_group_name= resource_group2.name,
+    sku= "Standard",
+    frontend_ip_configurations=[azure.lb.LoadBalancerFrontendIpConfigurationArgs(
+        name="PublicIPAddress",
+        public_ip_address_id= public_ip.id,
+    )])
+backend_address_pool = azure.lb.BackendAddressPool(name = "bckaddpool", resource_name="bckaddpool", loadbalancer_id= load_balancer.id)
+
+rule = azure.lb.Rule(
+    name = "RulePort22",
+    resource_name= "RulePort22",
+    loadbalancer_id= load_balancer.id,
+    protocol="Tcp",
+    frontend_port= 22,
+    backend_port= 22,
+    frontend_ip_configuration_name = "PublicIPAddress",
+    backend_address_pool_ids = [backend_address_pool.id],
+    )
+rule2 = azure.lb.Rule(
+    name = "RulePort80",
+    resource_name= "RulePort80",
+    loadbalancer_id= load_balancer.id,
+    protocol="Tcp",
+    frontend_port= 80,
+    backend_port= 80,
+    frontend_ip_configuration_name = "PublicIPAddress",
+    backend_address_pool_ids = [backend_address_pool.id],
+    )
+rule3 = azure.lb.Rule(
+    name = "RulePort445",
+    resource_name= "RulePort445",
+    loadbalancer_id= load_balancer.id,
+    protocol="Tcp",
+    frontend_port= 445,
+    backend_port= 445,
+    frontend_ip_configuration_name = "PublicIPAddress",
+    backend_address_pool_ids = [backend_address_pool.id],
+    )
+
+# \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\ Load Balanced Server Part \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 i = 0
-while i < 1:
+while i < 2:
     i += 1
     network_iface = network.NetworkInterface(
         resource_name=f"server-nic{i}",
@@ -120,82 +175,28 @@ while i < 1:
                 version="latest",
             ),
         ))
+network_interface_backend_address_pool_association = azure.network.NetworkInterfaceBackendAddressPoolAssociation(
+    resource_name = "BackendAddressPoolAssociation",
+    network_interface_id= network_iface.id,
+    ip_configuration_name= "webserveripcfg",
+    backend_address_pool_id= backend_address_pool.id),
 
-#     public_ip_addr = vm.id.apply(lambda _: network.get_public_ip_address_output(
-#         public_ip_address_name=public_ip.name,
-#         resource_group_name=resource_group2.name))
-#     ipArray.append(public_ip.ip_configuration)
-
-# export("public_ip", ipArray)
-
-public_ip = az.network.PublicIPAddress("publicIPAddress",
-    idle_timeout_in_minutes=10,
-    location= resource_group2.location,
-    public_ip_address_version="IPv4",
-    public_ip_allocation_method="Static",
-    public_ip_address_name="test-ip",
-    resource_group_name= resource_group2.name,
-    sku=az.network.PublicIPAddressSkuArgs(
-        name="Standard",
-        tier="Regional",
-    ))
-
-
-load_balancer = azure.lb.LoadBalancer(
-    resource_name= "exampleLoadBalancer",
-    name="exampleLoadBalancer",
-    location= resource_group2.location,
-    resource_group_name= resource_group2.name,
-    sku= "Standard",
-    frontend_ip_configurations=[azure.lb.LoadBalancerFrontendIpConfigurationArgs(
-        name="PublicIPAddress",
-        public_ip_address_id= public_ip.id,
-    )])
-backend_address_pool = azure.lb.BackendAddressPool("Backend", loadbalancer_id= load_balancer.id)
-
+# \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\ NSG Part \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 
 network_security_group = azure.network.NetworkSecurityGroup(resource_name= "NetworkSecurityGroup",
     name="NetworkSecurityGroup",
     location= resource_group2.location,
     resource_group_name= resource_group2.name,)
 
-NetworkSR1 = azure.network.NetworkSecurityRule(
-    resource_name = "Test1",
-    name= "test1",
-    priority=100,
-    direction="Inbound",
-    access="Allow",
-    protocol="Tcp",
-    source_port_range="22",
-    destination_port_range="*",
-    source_address_prefix="*",
-    destination_address_prefix="*",
-    resource_group_name= resource_group2.name,
-    network_security_group_name= network_security_group.name)
-
 NetworkSR2 = azure.network.NetworkSecurityRule(
-        resource_name="test2",
-        name= "test2",
-        priority=110,
+        resource_name="NSGRules",
+        name= "NSGRules",
+        priority=100,
         direction="Inbound",
         access="Allow",
         protocol="Tcp",
-        source_port_range= "80",
-        destination_port_range="*",
-        source_address_prefix="*",
-        destination_address_prefix="*",
-        resource_group_name= resource_group2.name,
-        network_security_group_name= network_security_group.name)
-
-NetworkSR3 = azure.network.NetworkSecurityRule( 
-        resource_name="test3",
-        name= "test3",
-        priority=120,
-        direction="Inbound",
-        access="Allow",
-        protocol="Tcp",
-        source_port_range= "445",
-        destination_port_range="*",
+        source_port_range= "*",
+        destination_port_ranges=["22","80","445"],
         source_address_prefix="*",
         destination_address_prefix="*",
         resource_group_name= resource_group2.name,
