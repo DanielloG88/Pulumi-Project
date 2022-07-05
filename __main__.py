@@ -12,7 +12,7 @@ from operator import truediv
 
 # Create an Azure Resource Group
 resource_group = resources.ResourceGroup(
-    name = 'StaticWebSiteRG', resource_group_name="StaticWebSiteRG")
+    'StaticWebSiteRG', resource_group_name="StaticWebSiteRG")
 
 # Create an Azure resource (Storage Account)
 account = storage.StorageAccount('sa',
@@ -53,7 +53,7 @@ username = config.require("username")
 password = config.require("password")
 # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\ Resource Group \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 resource_group2 = resources.ResourceGroup(
-    "server", resource_group_name='Server_RG')
+    "Server_RG", resource_group_name='Server_RG')
 # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\ Virtual Network and LB roules\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 net = network.VirtualNetwork(
     resource_name = "server-network",
@@ -126,16 +126,23 @@ rule3 = azure.lb.Rule(
 i = 0
 while i < 2:
     i += 1
+    
     network_iface = network.NetworkInterface(
         resource_name=f"server-nic{i}",
         network_interface_name=f"server-nic{i}",
         resource_group_name=resource_group2.name,
         ip_configurations=[network.NetworkInterfaceIPConfigurationArgs(
-            name="webserveripcfg",
+            name=f"webserveripcfg{i}",
             subnet=network.SubnetArgs(id=net.subnets[0].id),
             private_ip_allocation_method=network.IPAllocationMethod.DYNAMIC,
             # public_ip_address=network.PublicIPAddressArgs(id=public_ip.id),
         )])
+     
+    network_interface_backend_address_pool_association = azure.network.NetworkInterfaceBackendAddressPoolAssociation(
+    resource_name = f"BackendAddressPoolAssociation{i}",
+    network_interface_id= network_iface.id,
+    ip_configuration_name= f"webserveripcfg{i}",
+    backend_address_pool_id= backend_address_pool.id),
 
     init_script = """#!/bin/bash
     echo "Hello, World!" > index.html
@@ -175,11 +182,7 @@ while i < 2:
                 version="latest",
             ),
         ))
-network_interface_backend_address_pool_association = azure.network.NetworkInterfaceBackendAddressPoolAssociation(
-    resource_name = "BackendAddressPoolAssociation",
-    network_interface_id= network_iface.id,
-    ip_configuration_name= "webserveripcfg",
-    backend_address_pool_id= backend_address_pool.id),
+
 
 # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\ NSG Part \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 
@@ -202,6 +205,6 @@ NetworkSR2 = azure.network.NetworkSecurityRule(
         resource_group_name= resource_group2.name,
         network_security_group_name= network_security_group.name)
 
-subnet_network_security_group_association = azure.network.SubnetNetworkSecurityGroupAssociation("NSGAssociation",
+subnet_network_security_group_association = azure.network.SubnetNetworkSecurityGroupAssociation("NSG_Association",
     subnet_id= net.subnets[0].id,
     network_security_group_id= network_security_group.id)
