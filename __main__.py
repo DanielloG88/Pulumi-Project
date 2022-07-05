@@ -51,9 +51,11 @@ pulumi.export("staticEndpoint", account.primary_endpoints.web)
 config = Config()
 username = config.require("username")
 password = config.require("password")
-# \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\ Resource Group \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+# \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\ Resource Group Number 2 \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 resource_group2 = resources.ResourceGroup(
     "Server_RG", resource_group_name='Server_RG')
+
 # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\ Virtual Network and LB roules\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 net = network.VirtualNetwork(
     resource_name = "server-network",
