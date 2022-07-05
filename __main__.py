@@ -1,46 +1,9 @@
 from unicodedata import name
-import pulumi
 import pulumi_azure as azure
 import pulumi_azure_native as az
 from pulumi import Config, Output, export
 import base64
 from operator import truediv
-
-# Create an Azure Resource Group
-resource_group = az.resources.ResourceGroup(
-    'StaticWebSiteRG', resource_group_name="StaticWebSiteRG")
-
-# Create an Azure resource (Storage Account)
-account = az.storage.StorageAccount('sa',
-    resource_group_name=resource_group.name,
-    sku=az.storage.SkuArgs(
-    name=az.storage.SkuName.STANDARD_LRS,
-    ),
-    kind=az.storage.Kind.STORAGE_V2)
-
-# Export the primary key of the Storage Account
-primary_key = pulumi.Output.all(resource_group.name, account.name) \
-    .apply(lambda args: az.storage.list_storage_account_keys(
-        resource_group_name=args[0],
-        account_name=args[1]
-    )).apply(lambda accountKeys: accountKeys.keys[0].value)
-
-static_website = az.storage.StorageAccountStaticWebsite('StaticWebsite',
-    account_name=account.name,
-    resource_group_name=resource_group.name,
-    index_document='index.html')
-
-# Upload the file
-index_html = az.storage.Blob("index.html",
-    resource_group_name=resource_group.name,
-    account_name=account.name,
-    container_name=static_website.container_name,
-    source=pulumi.FileAsset("index.html"),
-    content_type="text/html")
-
-pulumi.export("primary_storage_key", primary_key)
-# Web endpoint to the website
-pulumi.export("staticEndpoint", account.primary_endpoints.web)
 
 # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\ Load Balanced Server Part \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 
