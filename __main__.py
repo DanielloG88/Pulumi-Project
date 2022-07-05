@@ -2,45 +2,41 @@ from unicodedata import name
 import pulumi
 import pulumi_azure as azure
 import pulumi_azure_native as az
-from pulumi_azure_native import storage
-from pulumi_azure_native import compute
-from pulumi_azure_native import network
-from pulumi_azure_native import resources
 from pulumi import Config, Output, export
 import base64
 from operator import truediv
 
 # Create an Azure Resource Group
-resource_group = resources.ResourceGroup(
+resource_group = az.resources.ResourceGroup(
     'StaticWebSiteRG', resource_group_name="StaticWebSiteRG")
 
 # Create an Azure resource (Storage Account)
-account = storage.StorageAccount('sa',
-                                 resource_group_name=resource_group.name,
-                                 sku=storage.SkuArgs(
-                                     name=storage.SkuName.STANDARD_LRS,
-                                 ),
-                                 kind=storage.Kind.STORAGE_V2)
+account = az.storage.StorageAccount('sa',
+    resource_group_name=resource_group.name,
+    sku=az.storage.SkuArgs(
+    name=az.storage.SkuName.STANDARD_LRS,
+    ),
+    kind=az.storage.Kind.STORAGE_V2)
 
 # Export the primary key of the Storage Account
 primary_key = pulumi.Output.all(resource_group.name, account.name) \
-    .apply(lambda args: storage.list_storage_account_keys(
+    .apply(lambda args: az.storage.list_storage_account_keys(
         resource_group_name=args[0],
         account_name=args[1]
     )).apply(lambda accountKeys: accountKeys.keys[0].value)
 
-static_website = storage.StorageAccountStaticWebsite('StaticWebsite',
-                                                     account_name=account.name,
-                                                     resource_group_name=resource_group.name,
-                                                     index_document='index.html')
+static_website = az.storage.StorageAccountStaticWebsite('StaticWebsite',
+    account_name=account.name,
+    resource_group_name=resource_group.name,
+    index_document='index.html')
 
 # Upload the file
-index_html = storage.Blob("index.html",
-                          resource_group_name=resource_group.name,
-                          account_name=account.name,
-                          container_name=static_website.container_name,
-                          source=pulumi.FileAsset("index.html"),
-                          content_type="text/html")
+index_html = az.storage.Blob("index.html",
+    resource_group_name=resource_group.name,
+    account_name=account.name,
+    container_name=static_website.container_name,
+    source=pulumi.FileAsset("index.html"),
+    content_type="text/html")
 
 pulumi.export("primary_storage_key", primary_key)
 # Web endpoint to the website
@@ -53,18 +49,18 @@ username = config.require("username")
 password = config.require("password")
 
 # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\ Resource Group Number 2 \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-resource_group2 = resources.ResourceGroup(
+resource_group2 = az.resources.ResourceGroup(
     "Server_RG", resource_group_name='Server_RG')
 
 # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\ Virtual Network and LB roules\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-net = network.VirtualNetwork(
+net = az.network.VirtualNetwork(
     resource_name = "server-network",
     virtual_network_name="server-network",
     resource_group_name=resource_group2.name,
-    address_space=network.AddressSpaceArgs(
+    address_space=az.network.AddressSpaceArgs(
         address_prefixes=["10.0.0.0/16"],
     ),
-    subnets=[network.SubnetArgs(
+    subnets=[az.network.SubnetArgs(
         name="default",
         address_prefix="10.0.1.0/24",
     )])
@@ -126,17 +122,17 @@ rule3 = azure.lb.Rule(
 
 # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\ Load Balanced Server Part \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 i = 0
-while i < 2:
+while i <4:
     i += 1
     
-    network_iface = network.NetworkInterface(
+    network_iface = az.network.NetworkInterface(
         resource_name=f"server-nic{i}",
         network_interface_name=f"server-nic{i}",
         resource_group_name=resource_group2.name,
-        ip_configurations=[network.NetworkInterfaceIPConfigurationArgs(
+        ip_configurations=[az.network.NetworkInterfaceIPConfigurationArgs(
             name=f"webserveripcfg{i}",
-            subnet=network.SubnetArgs(id=net.subnets[0].id),
-            private_ip_allocation_method=network.IPAllocationMethod.DYNAMIC,
+            subnet=az.network.SubnetArgs(id=net.subnets[0].id),
+            private_ip_allocation_method=az.network.IPAllocationMethod.DYNAMIC,
             # public_ip_address=network.PublicIPAddressArgs(id=public_ip.id),
         )])
      
@@ -150,40 +146,36 @@ while i < 2:
     echo "Hello, World!" > index.html
     nohup python -m SimpleHTTPServer 80 &"""
 
-    vm = compute.VirtualMachine(
-        resource_name=f"server-vm{i}",
-        vm_name= f"server-vm{i}",
-        resource_group_name=resource_group2.name,
-        network_profile=compute.NetworkProfileArgs(
-            network_interfaces=[
-                compute.NetworkInterfaceReferenceArgs(id=network_iface.id),
-            ],
+    vm = azure.compute.VirtualMachine(
+        name=f"VirtualMachine{i}",
+        resource_name=f"VirtualMachine{i}",
+        location= resource_group2.location,
+        resource_group_name= resource_group2.name,
+        network_interface_ids=[network_iface.id],
+        vm_size="STANDARD_B2S",
+        storage_image_reference=azure.compute.VirtualMachineStorageImageReferenceArgs(
+            publisher="Canonical",
+            offer="UbuntuServer",
+            sku="16.04-LTS",
+            version="latest",
         ),
-        hardware_profile=compute.HardwareProfileArgs(
-            vm_size=compute.VirtualMachineSizeTypes.STANDARD_B2S,
+        storage_os_disk=azure.compute.VirtualMachineStorageOsDiskArgs(
+            name = f"myosdisk{i}",
+            caching="ReadWrite",
+            create_option="FromImage",
+            managed_disk_type="Standard_LRS",
         ),
-        os_profile=compute.OSProfileArgs(
+        os_profile=azure.compute.VirtualMachineOsProfileArgs(
             computer_name=f"hostname{i}",
             admin_username=username,
             admin_password=password,
             custom_data=base64.b64encode(
                 init_script.encode("ascii")).decode("ascii"),
-            linux_configuration=compute.LinuxConfigurationArgs(
-                disable_password_authentication=False,
-            ),
         ),
-        storage_profile=compute.StorageProfileArgs(
-            os_disk=compute.OSDiskArgs(
-                create_option=compute.DiskCreateOptionTypes.FROM_IMAGE,
-                name=f"myosdisk{i}",
-            ),
-            image_reference=compute.ImageReferenceArgs(
-                publisher="canonical",
-                offer="UbuntuServer",
-                sku="16.04-LTS",
-                version="latest",
-            ),
-        ))
+        os_profile_linux_config=azure.compute.VirtualMachineOsProfileLinuxConfigArgs(
+            disable_password_authentication=False,
+        ),
+        )
 
 
 # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\ NSG Part \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
