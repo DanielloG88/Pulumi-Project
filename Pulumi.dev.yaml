@@ -1,0 +1,5 @@
+config:
+  'ProgettoPulumi:': admin
+  ProgettoPulumi:password: admin
+  ProgettoPulumi:username: admin
+  azure-native:location: northeurope
